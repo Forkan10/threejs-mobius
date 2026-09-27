@@ -1,0 +1,1003 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1" />
+<title>Parametric Surfaces - Mobius Strip &amp; Torus Knot</title>
+<style>
+  :root {
+    --bg: #0a0f1e;
+    --panel: rgba(15, 22, 40, 0.78);
+    --line: rgba(148, 176, 255, 0.16);
+    --text: #e7eefc;
+    --muted: #93a4c4;
+    --accent: #7aa2ff;
+    --accent-2: #4ade80;
+  }
+  * { box-sizing: border-box; }
+  html, body {
+    margin: 0; padding: 0; height: 100%; overflow: hidden;
+    background: var(--bg); color: var(--text);
+    font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    -webkit-font-smoothing: antialiased;
+  }
+  #view { position: fixed; inset: 0; display: block; width: 100%; height: 100%; touch-action: none; }
+  .panel {
+    position: fixed; z-index: 10;
+    background: var(--panel);
+    border: 1px solid var(--line);
+    border-radius: 14px;
+    padding: 12px 14px;
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.35);
+    font-size: 13px;
+  }
+  #controls { top: 16px; left: 16px; width: 268px; }
+  #info { left: 16px; bottom: 16px; width: 268px; }
+  h1 { font-size: 14px; margin: 0 0 2px; letter-spacing: 0.01em; font-weight: 650; }
+  .sub { color: var(--muted); font-size: 11px; margin-bottom: 10px; }
+  .seg { display: flex; gap: 6px; margin-bottom: 10px; }
+  .seg button { flex: 1; }
+  button {
+    font: inherit; font-size: 12px; font-weight: 550;
+    color: var(--text); background: rgba(122, 162, 255, 0.1);
+    border: 1px solid var(--line); border-radius: 9px;
+    padding: 7px 10px; cursor: pointer; transition: background .15s, border-color .15s, transform .06s;
+  }
+  button:hover { background: rgba(122, 162, 255, 0.2); border-color: rgba(122, 162, 255, 0.4); }
+  button:active { transform: translateY(1px); }
+  button[aria-pressed="true"] { background: linear-gradient(180deg, #4f7dff, #3b63e0); border-color: #6d92ff; color: #fff; }
+  .row { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin: 7px 0; }
+  .row.wrap { flex-wrap: wrap; }
+  label { color: var(--muted); font-size: 12px; user-select: none; cursor: pointer; }
+  input[type="number"] {
+    font: inherit; font-size: 12px; width: 62px; text-align: center;
+    color: var(--text); background: rgba(8, 12, 24, 0.8);
+    border: 1px solid var(--line); border-radius: 8px; padding: 5px 6px;
+  }
+  input[type="number"]:disabled { opacity: 0.4; }
+  input[type="checkbox"] { accent-color: var(--accent); width: 15px; height: 15px; cursor: pointer; }
+  .divider { height: 1px; background: var(--line); margin: 10px 0; }
+  .kv { display: flex; justify-content: space-between; gap: 10px; margin: 3px 0; font-size: 12px; }
+  .kv span:first-child { color: var(--muted); }
+  .kv span:last-child { font-variant-numeric: tabular-nums; text-align: right; }
+  code {
+    display: block; font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    font-size: 10.5px; line-height: 1.5; color: #b7c8ee;
+    background: rgba(8, 12, 24, 0.72); border: 1px solid var(--line);
+    border-radius: 8px; padding: 7px 8px; margin: 8px 0 4px;
+    white-space: pre-wrap; word-break: break-word;
+  }
+  #status { display: flex; align-items: center; gap: 7px; margin-top: 9px; font-size: 11.5px; color: var(--muted); }
+  .dot { width: 7px; height: 7px; border-radius: 999px; background: #f59e0b; flex: none; }
+  .dot.ok { background: var(--accent-2); }
+  .dot.err { background: #f87171; }
+  #fatal {
+    position: fixed; inset: 0; z-index: 50; display: none;
+    align-items: center; justify-content: center; padding: 24px;
+    background: rgba(10, 15, 30, 0.96);
+  }
+  #fatal .box { max-width: 560px; border: 1px solid rgba(248, 113, 113, 0.4); border-radius: 14px; padding: 18px 20px; background: rgba(30, 12, 18, 0.6); }
+  #fatal h2 { margin: 0 0 8px; font-size: 15px; color: #fecdd3; }
+  #fatal p { margin: 0 0 8px; font-size: 13px; color: #f8c9cf; line-height: 1.5; }
+  #fatal code { border-color: rgba(248, 113, 113, 0.3); color: #fecdd3; }
+  @media (max-width: 620px) {
+    #controls, #info { width: calc(100vw - 32px); }
+    #info { bottom: 10px; }
+    #controls { top: 10px; left: 10px; }
+    #info { left: 10px; }
+  }
+</style>
+</head>
+<body>
+
+<canvas id="view"></canvas>
+
+<div id="controls" class="panel">
+  <h1>Parametric Surface Viewer</h1>
+  <div class="sub">Drag to orbit &middot; wheel to zoom &middot; right-drag to pan</div>
+
+  <div class="seg" role="group" aria-label="Surface">
+    <button id="btnMobius" type="button" aria-pressed="true">Mobius Strip</button>
+    <button id="btnKnot" type="button" aria-pressed="false">Torus Knot</button>
+  </div>
+
+  <div class="row">
+    <label for="inP">Torus knot p</label>
+    <input id="inP" type="number" min="1" max="12" step="1" value="2" disabled />
+  </div>
+  <div class="row">
+    <label for="inQ">Torus knot q</label>
+    <input id="inQ" type="number" min="1" max="12" step="1" value="3" disabled />
+  </div>
+
+  <div class="divider"></div>
+
+  <div class="row">
+    <label for="inWire">Wireframe</label>
+    <input id="inWire" type="checkbox" />
+  </div>
+  <div class="row">
+    <label for="inSpin">Auto-rotate</label>
+    <input id="inSpin" type="checkbox" />
+  </div>
+
+  <div class="divider"></div>
+
+  <div class="row wrap">
+    <button id="btnReset" type="button" style="flex:1">Reset view</button>
+  </div>
+</div>
+
+<div id="info" class="panel">
+  <div class="kv"><span>Surface</span><span id="outSurface">Mobius strip</span></div>
+  <div class="kv"><span>Vertices</span><span id="outVerts">-</span></div>
+  <div class="kv"><span>Triangles</span><span id="outTris">-</span></div>
+  <div class="kv"><span>Renderer</span><span id="outRenderer">-</span></div>
+  <div class="kv"><span>Frames / s</span><span id="outFps">-</span></div>
+  <code id="outFormula"></code>
+  <div id="status"><span id="statusDot" class="dot"></span><span id="statusText">Initialising...</span></div>
+</div>
+
+<div id="fatal">
+  <div class="box">
+    <h2 id="fatalTitle">Could not start the 3D viewer</h2>
+    <p id="fatalBody"></p>
+    <code id="fatalDetail"></code>
+  </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/three@0.147.0/build/three.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.147.0/examples/js/controls/OrbitControls.js"></script>
+<script>
+/* ===================== SURFACE MATH START ===================== */
+/* Pure parameter-space mathematics: plain numbers in, plain flat typed arrays
+   out. No THREE, no DOM, no globals. Exported as window.SurfaceMath so the
+   formulas can be unit-tested outside a browser. */
+var SurfaceMath = (function () {
+  'use strict';
+
+  function indexArrayFor(vertexCount) {
+    return vertexCount < 65536 ? Uint16Array : Uint32Array;
+  }
+
+  function cross(a, b, out) {
+    out[0] = a[1] * b[2] - a[2] * b[1];
+    out[1] = a[2] * b[0] - a[0] * b[2];
+    out[2] = a[0] * b[1] - a[1] * b[0];
+    return out;
+  }
+  function dot(a, b) { return a[0] * b[0] + a[1] * b[1] + a[2] * b[2]; }
+  function normalize(v) {
+    var len = Math.sqrt(v[0] * v[0] + v[1] * v[1] + v[2] * v[2]) || 1;
+    v[0] /= len; v[1] /= len; v[2] /= len;
+    return v;
+  }
+  function vecAt(arr, i, out) { out[0] = arr[i * 3]; out[1] = arr[i * 3 + 1]; out[2] = arr[i * 3 + 2]; }
+  function vecPut(arr, i, v) { arr[i * 3] = v[0]; arr[i * 3 + 1] = v[1]; arr[i * 3 + 2] = v[2]; }
+
+  /* Rotate vector `v` by `angle` radians about unit axis `axis` (Rodrigues). */
+  function rotateAbout(v, axis, angle, out) {
+    var c = Math.cos(angle), s = Math.sin(angle);
+    var d = dot(v, axis);
+    var cr = cross(axis, v, [0, 0, 0]);
+    out[0] = v[0] * c + cr[0] * s + axis[0] * d * (1 - c);
+    out[1] = v[1] * c + cr[1] * s + axis[1] * d * (1 - c);
+    out[2] = v[2] * c + cr[2] * s + axis[2] * d * (1 - c);
+    return out;
+  }
+
+  /* Transport a frame vector n from tangent t0 to tangent t1 (rotation that
+     carries t0 onto t1), then re-orthogonalise against t1. */
+  function transport(n, t0, t1, out) {
+    var axis = cross(t0, t1, [0, 0, 0]);
+    var s = Math.sqrt(dot(axis, axis));
+    var c = dot(t0, t1);
+    if (s < 1e-12) {
+      out[0] = n[0]; out[1] = n[1]; out[2] = n[2];
+    } else {
+      axis[0] /= s; axis[1] /= s; axis[2] /= s;
+      rotateAbout(n, axis, Math.atan2(s, c), out);
+    }
+    var proj = dot(out, t1);
+    out[0] -= proj * t1[0]; out[1] -= proj * t1[1]; out[2] -= proj * t1[2];
+    return normalize(out);
+  }
+
+  /* ---------------------------------------------------------------------
+     Mobius strip
+       P(u, v) = ( (R + v*cos(u/2)) * cos u,
+                   (R + v*cos(u/2)) * sin u,
+                    v*sin(u/2) )
+       u in [0, 2PI) around the loop, v in [-halfWidth, +halfWidth] across it.
+     Closing the loop requires the half twist: the ring after u = 2PI is the
+     ring at u = 0 with the v order reversed, because
+       P(2PI, v) = (R - v, 0, 0) = P(0, -v).
+     --------------------------------------------------------------------- */
+  function mobius(opts) {
+    opts = opts || {};
+    var radius = opts.radius != null ? opts.radius : 2.0;
+    var halfWidth = opts.halfWidth != null ? opts.halfWidth : 0.55;
+    var uSeg = opts.uSegments != null ? opts.uSegments : 220;   // around the loop
+    var vSeg = opts.vSegments != null ? opts.vSegments : 24;    // across the width
+
+    var rings = uSeg;          // closed mesh: no duplicated seam ring
+    var perRing = vSeg + 1;
+    var vertexCount = rings * perRing;
+    var triangleCount = rings * vSeg * 2;
+
+    var positions = new Float32Array(vertexCount * 3);
+    var normals = new Float32Array(vertexCount * 3);
+    var uvs = new Float32Array(vertexCount * 2);
+    var indices = new (indexArrayFor(vertexCount))(triangleCount * 3);
+
+    function pointAt(u, v, out) {
+      var halfU = u * 0.5;
+      var cc = Math.cos(halfU), ss = Math.sin(halfU);
+      var rr = radius + v * cc;
+      out[0] = rr * Math.cos(u);
+      out[1] = rr * Math.sin(u);
+      out[2] = v * ss;
+    }
+    /* Analytic normal = dP/du x dP/dv, normalised. */
+    function normalAt(u, v, out) {
+      var halfU = u * 0.5;
+      var cc = Math.cos(halfU), ss = Math.sin(halfU);
+      var cu = Math.cos(u), su = Math.sin(u);
+      var rr = radius + v * cc;
+      var ax = -0.5 * v * ss * cu - rr * su;
+      var ay = -0.5 * v * ss * su + rr * cu;
+      var az = 0.5 * v * cc;
+      var bx = cc * cu, by = cc * su, bz = ss;
+      out[0] = ay * bz - az * by;
+      out[1] = az * bx - ax * bz;
+      out[2] = ax * by - ay * bx;
+      return normalize(out);
+    }
+
+    var p = [0, 0, 0], n = [0, 0, 0], vi = 0;
+    for (var i = 0; i < rings; i++) {
+      var u = (2 * Math.PI) * i / rings;
+      for (var j = 0; j < perRing; j++) {
+        var v = -halfWidth + (2 * halfWidth) * j / vSeg;
+        pointAt(u, v, p);
+        normalAt(u, v, n);
+        positions[vi * 3] = p[0]; positions[vi * 3 + 1] = p[1]; positions[vi * 3 + 2] = p[2];
+        normals[vi * 3] = n[0]; normals[vi * 3 + 1] = n[1]; normals[vi * 3 + 2] = n[2];
+        uvs[vi * 2] = i / rings;
+        uvs[vi * 2 + 1] = j / vSeg;
+        vi++;
+      }
+    }
+
+    var ii = 0;
+    for (var a2 = 0; a2 < rings; a2++) {
+      var bRing = (a2 + 1) % rings;
+      var twist = (a2 === rings - 1);          // seam quad carries the half twist
+      var baseA = a2 * perRing;
+      var baseB = bRing * perRing;
+      for (var k = 0; k < vSeg; k++) {
+        var jb = twist ? (vSeg - k) : k;
+        var jc = twist ? (vSeg - k - 1) : (k + 1);
+        var i0 = baseA + k;
+        var i1 = baseB + jb;
+        var i2 = baseB + jc;
+        var i3 = baseA + k + 1;
+        indices[ii++] = i0; indices[ii++] = i1; indices[ii++] = i2;
+        indices[ii++] = i0; indices[ii++] = i2; indices[ii++] = i3;
+      }
+    }
+
+    return {
+      positions: positions, normals: normals, uvs: uvs, indices: indices,
+      vertexCount: vertexCount, triangleCount: triangleCount,
+      stats: {
+        kind: 'mobius', radius: radius, halfWidth: halfWidth,
+        uSegments: uSeg, vSegments: vSeg, closed: true, oneSided: true
+      }
+    };
+  }
+
+  /* ---------------------------------------------------------------------
+     (p, q) torus knot
+       C(t) = ( (R + A*cos(q t)) * cos(p t),
+                (R + A*cos(q t)) * sin(p t),
+                 A*sin(q t) )
+     A circular tube is swept along C using a rotation-minimising frame
+     (parallel transport) so the tube cannot flip or pinch, with the
+     leftover holonomy around the closed loop distributed evenly so the
+     tube meets itself seamlessly.
+     --------------------------------------------------------------------- */
+  function torusKnot(opts) {
+    opts = opts || {};
+    var p = opts.p != null ? opts.p : 2;
+    var q = opts.q != null ? opts.q : 3;
+    var R = opts.radius != null ? opts.radius : 2.2;
+    var A = opts.minorRadius != null ? opts.minorRadius : 1.0;
+    var tubeRadius = opts.tubeRadius != null ? opts.tubeRadius : 0.42;
+    var seg = opts.tSegments != null ? opts.tSegments : 360;      // samples along the curve
+    var ringSeg = opts.ringSegments != null ? opts.ringSegments : 24; // samples around the tube
+
+    var vertexCount = seg * ringSeg;
+    var triangleCount = seg * ringSeg * 2;
+    var positions = new Float32Array(vertexCount * 3);
+    var normals = new Float32Array(vertexCount * 3);
+    var uvs = new Float32Array(vertexCount * 2);
+    var indices = new (indexArrayFor(vertexCount))(triangleCount * 3);
+
+    var curve = new Float64Array(seg * 3);
+    var tangent = new Float64Array(seg * 3);
+    var frame = new Float64Array(seg * 3);     // N, perpendicular to T
+    var binormal = new Float64Array(seg * 3);  // B = T x N
+
+    function curveAt(t, out) {
+      var cq = Math.cos(q * t), rr = R + A * cq;
+      out[0] = rr * Math.cos(p * t);
+      out[1] = rr * Math.sin(p * t);
+      out[2] = A * Math.sin(q * t);
+    }
+    function tangentAt(t, out) {
+      var cq = Math.cos(q * t), sq = Math.sin(q * t);
+      var cp = Math.cos(p * t), sp = Math.sin(p * t);
+      var rr = R + A * cq;
+      out[0] = -A * q * sq * cp - p * rr * sp;
+      out[1] = -A * q * sq * sp + p * rr * cp;
+      out[2] = A * q * cq;
+      return normalize(out);
+    }
+
+    var tmp = [0, 0, 0], i;
+    for (i = 0; i < seg; i++) {
+      var t = (2 * Math.PI) * i / seg;
+      curveAt(t, tmp); vecPut(curve, i, tmp);
+      tangentAt(t, tmp); vecPut(tangent, i, tmp);
+    }
+
+    // Seed frame: any unit vector perpendicular to the first tangent.
+    var t0 = [tangent[0], tangent[1], tangent[2]];
+    var seed = Math.abs(t0[0]) < 0.9 ? [1, 0, 0] : [0, 1, 0];
+    var n0 = normalize(cross(seed, t0, [0, 0, 0]));
+    if (t0[0] * n0[0] + t0[1] * n0[1] + t0[2] * n0[2] > 1e-9) {
+      // (defensive) keep it exactly perpendicular
+      var d0 = t0[0] * n0[0] + t0[1] * n0[1] + t0[2] * n0[2];
+      n0[0] -= d0 * t0[0]; n0[1] -= d0 * t0[1]; n0[2] -= d0 * t0[2];
+      normalize(n0);
+    }
+    vecPut(frame, 0, n0);
+
+    // Parallel transport the frame along the curve.
+    var prevT = [0, 0, 0], nextT = [0, 0, 0], curN = [0, 0, 0], out = [0, 0, 0];
+    for (i = 0; i < seg - 1; i++) {
+      vecAt(tangent, i, prevT);
+      vecAt(tangent, i + 1, nextT);
+      vecAt(frame, i, curN);
+      transport(curN, prevT, nextT, out);
+      vecPut(frame, i + 1, out);
+    }
+
+    // Holonomy: transport the final frame back onto the first tangent and
+    // measure the mismatch angle, then spread it evenly around the loop.
+    vecAt(tangent, seg - 1, prevT);
+    vecAt(tangent, 0, nextT);
+    vecAt(frame, seg - 1, curN);
+    transport(curN, prevT, nextT, out);
+    var back = [out[0], out[1], out[2]];
+    var firstN = [frame[0], frame[1], frame[2]];
+    var cosPhi = dot(firstN, back);
+    var sinPhi = dot(cross(firstN, back, [0, 0, 0]), nextT);
+    var holonomy = Math.atan2(sinPhi, cosPhi);
+
+    for (i = 0; i < seg; i++) {
+      vecAt(frame, i, curN);
+      vecAt(tangent, i, prevT);
+      rotateAbout(curN, prevT, -holonomy * i / seg, out);
+      var proj = dot(out, prevT);
+      out[0] -= proj * prevT[0]; out[1] -= proj * prevT[1]; out[2] -= proj * prevT[2];
+      vecPut(frame, i, normalize(out));
+    }
+    for (i = 0; i < seg; i++) {
+      vecAt(tangent, i, prevT);
+      vecAt(frame, i, curN);
+      vecPut(binormal, i, cross(prevT, curN, [0, 0, 0]));
+    }
+
+    // Sweep the tube.
+    var cv = [0, 0, 0], N = [0, 0, 0], B = [0, 0, 0], nv = [0, 0, 0], vi = 0;
+    for (i = 0; i < seg; i++) {
+      vecAt(curve, i, cv);
+      vecAt(frame, i, N);
+      vecAt(binormal, i, B);
+      for (var k = 0; k < ringSeg; k++) {
+        var phi = (2 * Math.PI) * k / ringSeg;
+        var cp = Math.cos(phi), sp = Math.sin(phi);
+        nv[0] = cp * N[0] + sp * B[0];
+        nv[1] = cp * N[1] + sp * B[1];
+        nv[2] = cp * N[2] + sp * B[2];
+        positions[vi * 3] = cv[0] + tubeRadius * nv[0];
+        positions[vi * 3 + 1] = cv[1] + tubeRadius * nv[1];
+        positions[vi * 3 + 2] = cv[2] + tubeRadius * nv[2];
+        normals[vi * 3] = nv[0]; normals[vi * 3 + 1] = nv[1]; normals[vi * 3 + 2] = nv[2];
+        uvs[vi * 2] = i / seg;
+        uvs[vi * 2 + 1] = k / ringSeg;
+        vi++;
+      }
+    }
+
+    // Winding chosen so cross(edge1, edge2) points along the outward radial normal.
+    var ii = 0;
+    for (i = 0; i < seg; i++) {
+      var iNext = (i + 1) % seg;
+      for (var k2 = 0; k2 < ringSeg; k2++) {
+        var kNext = (k2 + 1) % ringSeg;
+        var v0 = i * ringSeg + k2;
+        var v1 = i * ringSeg + kNext;
+        var v2 = iNext * ringSeg + kNext;
+        var v3 = iNext * ringSeg + k2;
+        indices[ii++] = v0; indices[ii++] = v1; indices[ii++] = v2;
+        indices[ii++] = v0; indices[ii++] = v2; indices[ii++] = v3;
+      }
+    }
+
+    return {
+      positions: positions, normals: normals, uvs: uvs, indices: indices,
+      vertexCount: vertexCount, triangleCount: triangleCount,
+      stats: {
+        kind: 'torusKnot', p: p, q: q, radius: R, minorRadius: A,
+        tubeRadius: tubeRadius, tSegments: seg, ringSegments: ringSeg,
+        closed: true, holonomy: holonomy
+      }
+    };
+  }
+
+  return { mobius: mobius, torusKnot: torusKnot };
+})();
+
+if (typeof window !== 'undefined') { window.SurfaceMath = SurfaceMath; }
+/* ===================== SURFACE MATH END ===================== */
+
+
+/* ===================== VIEWER ===================== */
+(function () {
+  'use strict';
+
+  var ui = {
+    surface: 'mobius',
+    p: 2,
+    q: 3,
+    wireframe: false,
+    autoRotate: false
+  };
+
+  /* Default viewing direction per surface. The Mobius band lies almost flat in
+     the xy plane, so a top-down camera hides the half twist and makes it look
+     like a plain ring; it needs a shallow, oblique elevation instead. */
+  var CAM_DIR = {
+    mobius: [1.0, 0.34, 0.52],
+    torusKnot: [0.62, 0.46, 1.0]
+  };
+
+  var el = {
+    canvas: document.getElementById('view'),
+    btnMobius: document.getElementById('btnMobius'),
+    btnKnot: document.getElementById('btnKnot'),
+    inP: document.getElementById('inP'),
+    inQ: document.getElementById('inQ'),
+    inWire: document.getElementById('inWire'),
+    inSpin: document.getElementById('inSpin'),
+    btnReset: document.getElementById('btnReset'),
+    outSurface: document.getElementById('outSurface'),
+    outVerts: document.getElementById('outVerts'),
+    outTris: document.getElementById('outTris'),
+    outRenderer: document.getElementById('outRenderer'),
+    outFps: document.getElementById('outFps'),
+    outFormula: document.getElementById('outFormula'),
+    statusDot: document.getElementById('statusDot'),
+    statusText: document.getElementById('statusText'),
+    fatal: document.getElementById('fatal'),
+    fatalTitle: document.getElementById('fatalTitle'),
+    fatalBody: document.getElementById('fatalBody'),
+    fatalDetail: document.getElementById('fatalDetail')
+  };
+
+  function fail(title, body, detail) {
+    el.fatal.style.display = 'flex';
+    el.fatalTitle.textContent = title;
+    el.fatalBody.textContent = body;
+    el.fatalDetail.textContent = detail || '';
+    el.statusDot.className = 'dot err';
+    el.statusText.textContent = 'Failed to start.';
+  }
+
+  if (typeof THREE === 'undefined') {
+    fail(
+      'three.js could not be loaded',
+      'This page loads three.js from cdn.jsdelivr.net. Check your internet connection, then reload.',
+      'typeof THREE === "undefined"'
+    );
+    return;
+  }
+  if (typeof THREE.OrbitControls !== 'function') {
+    fail(
+      'OrbitControls could not be loaded',
+      'The controls script from cdn.jsdelivr.net did not run. Check your connection, then reload.',
+      'typeof THREE.OrbitControls !== "function"'
+    );
+    return;
+  }
+
+  var renderer = null, scene = null, camera = null, controls = null, mesh = null, material = null;
+  var ctx2d = null;
+  var mode = 'none';
+  var background = new THREE.Color(0x0a0f1e);
+  var canvasSize = { w: window.innerWidth || 1280, h: window.innerHeight || 720, dpr: 1 };
+  var dirty = true;
+  var vpMatrix = new THREE.Matrix4();
+
+  /* Probe WebGL on a throwaway canvas first: a failed attempt on the visible
+     canvas can leave it bound to a context type and block the 2D fallback. */
+  function probeWebGL() {
+    try {
+      var probe = document.createElement('canvas');
+      var gl = probe.getContext('webgl2') || probe.getContext('webgl') || probe.getContext('experimental-webgl');
+      return !!gl;
+    } catch (err) {
+      return false;
+    }
+  }
+
+  if (probeWebGL()) {
+    try {
+      renderer = new THREE.WebGLRenderer({ canvas: el.canvas, antialias: true });
+      mode = 'webgl';
+    } catch (err) {
+      renderer = null;
+    }
+  }
+
+  /* No WebGL (some embedded preview panes and headless browsers have none):
+     fall back to painting the same geometry with the Canvas 2D API. */
+  if (mode !== 'webgl') {
+    try { ctx2d = el.canvas.getContext('2d'); } catch (err) { ctx2d = null; }
+    if (!ctx2d) {
+      fail(
+        'No drawing context available',
+        'This browser could not provide either a WebGL or a Canvas 2D context, so the surface cannot be displayed.',
+        'webgl unavailable; canvas 2d context is null'
+      );
+      return;
+    }
+    mode = 'canvas2d';
+  }
+
+  if (mode === 'webgl') {
+    scene = new THREE.Scene();
+    scene.background = background;
+  }
+
+  camera = new THREE.PerspectiveCamera(50, (window.innerWidth || 1280) / (window.innerHeight || 720), 0.1, 2000);
+
+  controls = new THREE.OrbitControls(camera, el.canvas);
+  controls.enableDamping = true;
+  controls.dampingFactor = 0.08;
+  controls.rotateSpeed = 1.0;
+  controls.zoomSpeed = 1.0;
+  controls.panSpeed = 0.8;
+  controls.minDistance = 1.5;
+  controls.maxDistance = 60;
+  controls.autoRotateSpeed = 1.4;
+
+  if (mode === 'webgl') {
+    scene.add(new THREE.HemisphereLight(0xbfd8ff, 0x121a2e, 0.55));
+    var keyLight = new THREE.DirectionalLight(0xffffff, 1.05);
+    keyLight.position.set(6, 8, 9);
+    scene.add(keyLight);
+    var fillLight = new THREE.DirectionalLight(0x88aaff, 0.6);
+    fillLight.position.set(-8, -5, -7);
+    scene.add(fillLight);
+    var rimLight = new THREE.PointLight(0xffd9a0, 0.7, 200);
+    rimLight.position.set(-7, 6, -9);
+    scene.add(rimLight);
+
+    material = new THREE.MeshStandardMaterial({
+      color: 0xffffff,
+      vertexColors: true,
+      metalness: 0.15,
+      roughness: 0.34,
+      side: THREE.DoubleSide,
+      flatShading: false
+    });
+
+    mesh = new THREE.Mesh(new THREE.BufferGeometry(), material);
+    scene.add(mesh);
+  }
+
+  function sizeCanvas() {
+    var dpr = Math.min(window.devicePixelRatio || 1, 2);
+    var w = window.innerWidth || 1280, h = window.innerHeight || 720;
+    canvasSize.w = w; canvasSize.h = h; canvasSize.dpr = dpr;
+    if (mode === 'webgl') {
+      renderer.setPixelRatio(dpr);
+      renderer.setSize(w, h, false);
+    } else {
+      el.canvas.style.width = w + 'px';
+      el.canvas.style.height = h + 'px';
+      el.canvas.width = Math.round(w * dpr);
+      el.canvas.height = Math.round(h * dpr);
+    }
+  }
+  sizeCanvas();
+
+  /* ---- build render data from SurfaceMath output ---- */
+  function vertexColors(result) {
+    var count = result.uvs.length / 2;
+    var colors = new Float32Array(count * 3);
+    var color = new THREE.Color();
+    for (var i = 0; i < count; i++) {
+      color.setHSL((0.56 + result.uvs[i * 2] * 0.62) % 1, 0.7, 0.56);
+      colors[i * 3] = color.r;
+      colors[i * 3 + 1] = color.g;
+      colors[i * 3 + 2] = color.b;
+    }
+    return colors;
+  }
+
+  function toGeometry(result, colors) {
+    var geometry = new THREE.BufferGeometry();
+    geometry.setAttribute('position', new THREE.BufferAttribute(result.positions, 3));
+    geometry.setAttribute('normal', new THREE.BufferAttribute(result.normals, 3));
+    geometry.setAttribute('uv', new THREE.BufferAttribute(result.uvs, 2));
+    geometry.setAttribute('color', new THREE.BufferAttribute(colors, 3));
+    geometry.setIndex(new THREE.BufferAttribute(result.indices, 1));
+    geometry.computeBoundingSphere();
+    return geometry;
+  }
+
+  var surfaceData = null;
+  var surfaceColors = null;
+  var viewRadius = 2.5;
+  var paintState = null;
+
+  function segmentsFor(kind) {
+    if (mode === 'canvas2d') {
+      /* the software painter needs a lighter mesh to stay interactive */
+      return kind === 'mobius'
+        ? { uSegments: 120, vSegments: 10 }
+        : { tSegments: 160, ringSegments: 12 };
+    }
+    return kind === 'mobius'
+      ? { uSegments: 220, vSegments: 24 }
+      : { tSegments: 360, ringSegments: 24 };
+  }
+
+  function boundingRadiusOf(positions) {
+    var best = 0;
+    for (var i = 0; i < positions.length; i += 3) {
+      var d = Math.sqrt(positions[i] * positions[i] + positions[i + 1] * positions[i + 1] + positions[i + 2] * positions[i + 2]);
+      if (d > best) { best = d; }
+    }
+    return best || 1;
+  }
+
+  function buildSurface(refit) {
+    var opts = segmentsFor(ui.surface);
+    var result = (ui.surface === 'mobius')
+      ? SurfaceMath.mobius(opts)
+      : SurfaceMath.torusKnot({ p: ui.p, q: ui.q, tSegments: opts.tSegments, ringSegments: opts.ringSegments });
+
+    surfaceData = result;
+    surfaceColors = vertexColors(result);
+    viewRadius = boundingRadiusOf(result.positions);
+
+    if (mode === 'webgl') {
+      var old = mesh.geometry;
+      mesh.geometry = toGeometry(result, surfaceColors);
+      if (old) { old.dispose(); }
+    } else {
+      preparePaintState(result);
+    }
+
+    el.outSurface.textContent = (ui.surface === 'mobius')
+      ? 'Mobius strip'
+      : 'Torus knot (' + ui.p + ',' + ui.q + ')';
+    el.outVerts.textContent = result.vertexCount.toLocaleString();
+    el.outTris.textContent = result.triangleCount.toLocaleString();
+    el.outFormula.textContent = (ui.surface === 'mobius')
+      ? 'P(u,v) = ((R + v·cos(u/2))·cos u,\n          (R + v·cos(u/2))·sin u,\n           v·sin(u/2))\nR = ' + result.stats.radius + ',  v ∈ ±' + result.stats.halfWidth
+      : 'C(t) = ((R + A·cos(qt))·cos(pt),\n        (R + A·cos(qt))·sin(pt),\n         A·sin(qt))\nR = ' + result.stats.radius + ', A = ' + result.stats.minorRadius +
+        ', p = ' + result.stats.p + ', q = ' + result.stats.q +
+        '\ntube r = ' + result.stats.tubeRadius;
+
+    if (refit) { frameCamera(); }
+    checked = false;   // re-run the pixel self-check on the rebuilt surface
+    dirty = true;
+    return result;
+  }
+
+  function frameCamera() {
+    var radius = Math.max(viewRadius, 0.5);
+    var dist = radius / Math.sin((camera.fov * Math.PI / 180) / 2) * 1.22;
+    var aim = CAM_DIR[ui.surface] || CAM_DIR.mobius;
+    var dir = new THREE.Vector3(aim[0], aim[1], aim[2]).normalize();
+    camera.position.copy(dir.multiplyScalar(dist));
+    camera.near = Math.max(0.05, dist - radius * 3);
+    camera.far = dist + radius * 8 + 50;
+    camera.updateProjectionMatrix();
+    controls.target.set(0, 0, 0);
+    controls.update();
+  }
+
+  /* ---- software painter, used when WebGL is unavailable ---- */
+  var LIGHT_DIR = { x: 0.42, y: 0.72, z: 0.55 };
+
+  function preparePaintState(result) {
+    var tris = new Array(result.triangleCount);
+    for (var i = 0; i < tris.length; i++) {
+      tris[i] = { a: 0, b: 0, c: 0, d: 0, r: 0.5, g: 0.5, bl: 0.5, shade: 1 };
+    }
+    paintState = {
+      sx: new Float32Array(result.vertexCount),
+      sy: new Float32Array(result.vertexCount),
+      sz: new Float32Array(result.vertexCount),
+      ok: new Uint8Array(result.vertexCount),
+      tris: tris,
+      list: new Array(result.triangleCount)
+    };
+  }
+
+  function paint2D() {
+    var W = canvasSize.w, H = canvasSize.h;
+    var ctx = ctx2d;
+    if (!ctx) { return; }
+    ctx.setTransform(canvasSize.dpr, 0, 0, canvasSize.dpr, 0, 0);
+    ctx.fillStyle = '#0a0f1e';
+    ctx.fillRect(0, 0, W, H);
+    if (!surfaceData || !paintState) { return; }
+
+    camera.updateMatrixWorld();
+    vpMatrix.multiplyMatrices(camera.projectionMatrix, camera.matrixWorldInverse);
+    var m = vpMatrix.elements;
+    var pos = surfaceData.positions;
+    var nrm = surfaceData.normals;
+    var idx = surfaceData.indices;
+    var col = surfaceColors;
+    var st = paintState;
+    var n = surfaceData.vertexCount;
+    var i;
+
+    for (i = 0; i < n; i++) {
+      var x = pos[i * 3], y = pos[i * 3 + 1], z = pos[i * 3 + 2];
+      var cx = m[0] * x + m[4] * y + m[8] * z + m[12];
+      var cy = m[1] * x + m[5] * y + m[9] * z + m[13];
+      var cw = m[3] * x + m[7] * y + m[11] * z + m[15];
+      if (cw <= 0.0001) { st.ok[i] = 0; continue; }
+      st.ok[i] = 1;
+      st.sx[i] = ((cx / cw) * 0.5 + 0.5) * W;
+      st.sy[i] = (1 - ((cy / cw) * 0.5 + 0.5)) * H;
+      st.sz[i] = cw;
+    }
+
+    var tris = st.tris;
+    var used = 0;
+    for (var k = 0; k < idx.length; k += 3) {
+      var a = idx[k], b = idx[k + 1], c = idx[k + 2];
+      if (!st.ok[a] || !st.ok[b] || !st.ok[c]) { continue; }
+      var t = tris[used++];
+      t.a = a; t.b = b; t.c = c;
+      t.d = (st.sz[a] + st.sz[b] + st.sz[c]) / 3;
+      t.r = (col[a * 3] + col[b * 3] + col[c * 3]) / 3;
+      t.g = (col[a * 3 + 1] + col[b * 3 + 1] + col[c * 3 + 1]) / 3;
+      t.bl = (col[a * 3 + 2] + col[b * 3 + 2] + col[c * 3 + 2]) / 3;
+      var nx = (nrm[a * 3] + nrm[b * 3] + nrm[c * 3]) / 3;
+      var ny = (nrm[a * 3 + 1] + nrm[b * 3 + 1] + nrm[c * 3 + 1]) / 3;
+      var nz = (nrm[a * 3 + 2] + nrm[b * 3 + 2] + nrm[c * 3 + 2]) / 3;
+      var nl = Math.sqrt(nx * nx + ny * ny + nz * nz) || 1;
+      var lam = Math.abs((nx * LIGHT_DIR.x + ny * LIGHT_DIR.y + nz * LIGHT_DIR.z) / nl);
+      t.shade = 0.24 + 0.76 * lam;
+    }
+
+    var list = st.list;
+    for (i = 0; i < used; i++) { list[i] = tris[i]; }
+    list.length = used;
+    list.sort(function (p, q) { return q.d - p.d; });
+
+    var wire = (mode === 'webgl' && material) ? material.wireframe : el.inWire.checked;
+    ctx.lineWidth = 1;
+    for (i = 0; i < list.length; i++) {
+      var tri = list[i];
+      var R = Math.round(Math.min(1, tri.r * tri.shade) * 255);
+      var G = Math.round(Math.min(1, tri.g * tri.shade) * 255);
+      var B = Math.round(Math.min(1, tri.bl * tri.shade) * 255);
+      var css = 'rgb(' + R + ',' + G + ',' + B + ')';
+      ctx.beginPath();
+      ctx.moveTo(st.sx[tri.a], st.sy[tri.a]);
+      ctx.lineTo(st.sx[tri.b], st.sy[tri.b]);
+      ctx.lineTo(st.sx[tri.c], st.sy[tri.c]);
+      ctx.closePath();
+      if (wire) {
+        ctx.strokeStyle = css;
+        ctx.stroke();
+      } else {
+        ctx.fillStyle = css;
+        ctx.fill();
+        ctx.strokeStyle = css;
+        ctx.stroke();
+      }
+    }
+  }
+
+  /* ---- first-frame self check: are real pixels being rasterised? ---- */
+  var checked = false;
+  function pixelSelfCheck() {
+    checked = true;
+    try {
+      var hits = 0, samples = 0;
+      var bgR = Math.round(background.r * 255);
+      var bgG = Math.round(background.g * 255);
+      var bgB = Math.round(background.b * 255);
+      var i, j;
+      if (mode === 'webgl') {
+        var gl = renderer.getContext();
+        var w = renderer.domElement.width;
+        var h = renderer.domElement.height;
+        var buf = new Uint8Array(4);
+        for (i = 1; i <= 5; i++) {
+          for (j = 1; j <= 5; j++) {
+            samples++;
+            gl.readPixels(Math.floor(w * i / 6), Math.floor(h * j / 6), 1, 1, gl.RGBA, gl.UNSIGNED_BYTE, buf);
+            if (Math.abs(buf[0] - bgR) > 3 || Math.abs(buf[1] - bgG) > 3 || Math.abs(buf[2] - bgB) > 3) {
+              hits++;
+            }
+          }
+        }
+      } else {
+        var cw = el.canvas.width;
+        var ch = el.canvas.height;
+        for (i = 1; i <= 5; i++) {
+          for (j = 1; j <= 5; j++) {
+            samples++;
+            var px = ctx2d.getImageData(Math.floor(cw * i / 6), Math.floor(ch * j / 6), 1, 1).data;
+            if (Math.abs(px[0] - bgR) > 3 || Math.abs(px[1] - bgG) > 3 || Math.abs(px[2] - bgB) > 3) {
+              hits++;
+            }
+          }
+        }
+      }
+      var note = (mode === 'canvas2d') ? ' · Canvas 2D fallback (no WebGL)' : '';
+      if (hits > 0) {
+        el.statusDot.className = 'dot ok';
+        el.statusText.textContent = 'Ready · ' + hits + '/' + samples + ' sampled pixels contain geometry' + note;
+      } else {
+        el.statusDot.className = 'dot err';
+        el.statusText.textContent = 'Warning: no geometry pixels found in the frame' + note;
+      }
+    } catch (err) {
+      el.statusDot.className = 'dot';
+      el.statusText.textContent = 'Rendered (pixel self-check unavailable)';
+    }
+  }
+
+  /* ---- info readouts ---- */
+  function rendererLabel() {
+    if (mode === 'canvas2d') {
+      return 'Canvas 2D · software · ' + canvasSize.dpr.toFixed(2) + 'x DPR';
+    }
+    try {
+      var gl = renderer.getContext();
+      var isWebGL2 = typeof WebGL2RenderingContext !== 'undefined' && gl instanceof WebGL2RenderingContext;
+      return (isWebGL2 ? 'WebGL 2' : 'WebGL 1') + ' · ' + renderer.getPixelRatio().toFixed(2) + 'x DPR';
+    } catch (err) { return 'WebGL'; }
+  }
+
+  /* ---- UI wiring ---- */
+  function setSurface(kind) {
+    ui.surface = kind;
+    var isKnot = kind === 'torusKnot';
+    el.btnMobius.setAttribute('aria-pressed', String(!isKnot));
+    el.btnKnot.setAttribute('aria-pressed', String(isKnot));
+    el.inP.disabled = !isKnot;
+    el.inQ.disabled = !isKnot;
+    buildSurface(true);
+    el.statusDot.className = 'dot';
+    el.statusText.textContent = 'Building ' + (isKnot ? 'torus knot' : 'Mobius strip') + '...';
+  }
+
+  function readParam(input, min, max, fallback) {
+    var value = parseInt(input.value, 10);
+    if (!isFinite(value)) { value = fallback; }
+    value = Math.max(min, Math.min(max, value));
+    input.value = String(value);
+    return value;
+  }
+
+  el.btnMobius.addEventListener('click', function () { setSurface('mobius'); });
+  el.btnKnot.addEventListener('click', function () { setSurface('torusKnot'); });
+  el.inP.addEventListener('change', function () {
+    ui.p = readParam(el.inP, 1, 12, 2);
+    if (ui.surface === 'torusKnot') { buildSurface(false); }
+  });
+  el.inQ.addEventListener('change', function () {
+    ui.q = readParam(el.inQ, 1, 12, 3);
+    if (ui.surface === 'torusKnot') { buildSurface(false); }
+  });
+  el.inWire.addEventListener('change', function () {
+    if (material) { material.wireframe = el.inWire.checked; }
+    dirty = true;
+  });
+  el.inSpin.addEventListener('change', function () { controls.autoRotate = el.inSpin.checked; });
+  el.btnReset.addEventListener('click', function () { frameCamera(); });
+
+  window.addEventListener('resize', function () {
+    camera.aspect = (window.innerWidth || 1280) / (window.innerHeight || 720);
+    camera.updateProjectionMatrix();
+    sizeCanvas();
+    dirty = true;
+    checked = false;
+  });
+
+  /* ---- loop ---- */
+  controls.addEventListener('change', function () { dirty = true; });
+
+  function renderFrame() {
+    if (mode === 'webgl') {
+      renderer.render(scene, camera);
+    } else if (dirty || controls.autoRotate) {
+      paint2D();
+      dirty = false;
+    }
+  }
+
+  var fpsFrames = 0, fpsWindow = 0, lastFpsUpdate = performance.now();
+  function tick() {
+    requestAnimationFrame(tick);
+    controls.update();
+    renderFrame();
+
+    if (!checked) { pixelSelfCheck(); }
+
+    var now = performance.now();
+    fpsFrames++;
+    fpsWindow += now - lastFpsUpdate;
+    lastFpsUpdate = now;
+    if (fpsWindow >= 500) {
+      el.outFps.textContent = String(Math.round(fpsFrames * 1000 / fpsWindow));
+      fpsFrames = 0; fpsWindow = 0;
+    }
+  }
+
+  /* ---- optional deep-link parameters ----
+     ?surface=knot|mobius  &p=3&q=4  &wire=1  &rotate=1  */
+  var search = (window.location && window.location.search) ? window.location.search : '';
+  var qp = new URLSearchParams(search);
+  function qpInt(name, min, max, fallback) {
+    var value = parseInt(qp.get(name), 10);
+    if (!isFinite(value)) { return fallback; }
+    return Math.max(min, Math.min(max, value));
+  }
+  function qpFlag(name, fallback) {
+    var raw = qp.get(name);
+    if (raw === null) { return fallback; }
+    return raw === '' || raw === '1' || raw === 'true' || raw === 'yes';
+  }
+  var surfaceParam = qp.get('surface');
+  if (surfaceParam === 'knot' || surfaceParam === 'torusKnot' || surfaceParam === 'torus-knot') {
+    ui.surface = 'torusKnot';
+  }
+  ui.p = qpInt('p', 1, 12, ui.p);
+  ui.q = qpInt('q', 1, 12, ui.q);
+  el.inP.value = String(ui.p);
+  el.inQ.value = String(ui.q);
+  el.inWire.checked = qpFlag('wire', false);
+  el.inSpin.checked = qpFlag('rotate', false);
+  if (material) { material.wireframe = el.inWire.checked; }
+  controls.autoRotate = el.inSpin.checked;
+
+  el.outRenderer.textContent = rendererLabel();
+  setSurface(ui.surface);
+  el.statusDot.className = 'dot';
+  el.statusText.textContent = 'Rendering first frame...';
+  tick();
+})();
+</script>
+</body>
+</html>
